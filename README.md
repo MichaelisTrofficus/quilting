@@ -8,7 +8,7 @@ In a), we can see the naïve approach, that is, a **random placement of blocks**
 
  In b), we place neighboring blocks constrained by overlap (we choose those blocks which have the **minimum quadratic error in the region of overlap**).
 
- In c), we apply a **mincut algorithm**, to obtain a minimum error cut in the region of overlap between neighboring blocks.
+ In c), we apply a **mincut algorithm**, to obtain a minimum error cut in the region of overlap between neighboring blocks. **Properly, this is the quilting algorithm**.
 
 You can check the details of the implementation (I did it for educational purposes, so don't expect highest efficiency) in the source files. To conclude, I will show some interesting results.
 
