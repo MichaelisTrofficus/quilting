@@ -1,6 +1,6 @@
 # Image Quilting for Texture Synthesis
 
-This is my own implementation of the **quilting algorithm** in C++ programming language using the OpenCV library.  The algorithm is pretty simple, but it produces good results. In the following image (which comes from the original paper), you can see, in summary, how quilting works.
+This is my own implementation of the **quilting algorithm** in the C++ programming language using the OpenCV library.  The algorithm is pretty simple, but it produces good results. In the following image (which comes from the original paper), you can see, in summary, how quilting works.
 
 ![enter image description here](https://lh3.googleusercontent.com/proxy/PvirojwkVAMb8uVbkWS9ce66kx5pyAlTBqmEPvNFz5QXCuzMqsslkNC2vnxXl7AZ5egnDzIinMFPv4prj-H6vHOWmvG5qr7rWbMg4q21QUwYMucNlqC1FYkJWgJS9Cw8keQLLRAvFFTfRpMjVZM7ADzmIxqNzmMqjreGQh2Ls1TLSw)
 
