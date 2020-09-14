@@ -9,13 +9,19 @@ using namespace cv;
 
 
 
-int main(int argc, char *argv[])
+//int main(int argc, char *argv[])
+int main()
 {
-	string pathTextures = argv[1];
-	string pathOutput = argv[2];
-	int blockSize = atoi(argv[3]);
-	int generationScale = atoi(argv[4]);
-	
+	// string pathTextures = argv[1];
+	// string pathOutput = argv[2];
+	// int blockSize = atoi(argv[3]);
+	// int generationScale = atoi(argv[4]);
+
+	string pathTextures = "D:\\quilting_input\\t15.png";
+	string pathOutput = "D:\\quilting_input\\output.jpg";
+	int blockSize = 32;
+	int generationScale = 4;
+
 	double tolerance = 0.1;
 	int overlap = (int)(blockSize / 6.);
 
@@ -67,6 +73,7 @@ int main(int argc, char *argv[])
 						sizeX = outputCols - j;
 						block = block(Rect(0, 0, sizeX, blockSize));
 					} 
+					
 					block.copyTo(outputTexture(Rect(j, i, sizeX, blockSize)));
 				}
 				else if (j == 0) {
@@ -81,25 +88,27 @@ int main(int argc, char *argv[])
 					}
 
 					block.copyTo(outputTexture(Rect(j, i, blockSize, sizeY)));
+	
 				}
 				else {
+					
+					Mat block = findHorizontalVerticalPatch(inputTexture, outputTexture, limit, i, j, blockSize, overlap, tolerance);
 
-						Mat block = findHorizontalVerticalPatch(inputTexture, outputTexture, limit, i, j, blockSize, overlap, tolerance);
+					int sizeX = blockSize;
+					int sizeY = blockSize;
 
-						int sizeX = blockSize;
-						int sizeY = blockSize;
+					if ((i + blockSize) >= outputRows) {
+						sizeY = outputRows - i;
+						block = block(Rect(0, 0, sizeX, sizeY));
+					}
 
-						if ((i + blockSize) >= outputRows) {
-							sizeY = outputRows - i;
-							block = block(Rect(0, 0, sizeX, sizeY));
-						}
+					if ((j + blockSize) >= outputCols) {
+						sizeX = outputCols - j;
+						block = block(Rect(0, 0, sizeX, sizeY));
+					}
 
-						if ((j + blockSize) >= outputCols) {
-							sizeX = outputCols - j;
-							block = block(Rect(0, 0, sizeX, sizeY));
-						}
-
-						block.copyTo(outputTexture(Rect(j, i, sizeX, sizeY)));
+					block.copyTo(outputTexture(Rect(j, i, sizeX, sizeY)));
+					
 				}
 			}
 			else {

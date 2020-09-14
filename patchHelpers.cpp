@@ -1,5 +1,6 @@
 #include "patchHelpers.h"
 #include "generalHelpers.h"
+#include <ctime>
 
 
 vector <pair<int, int>> backtracking(int minIndex, Mat indexMatrix) {
@@ -18,10 +19,8 @@ vector <pair<int, int>> backtracking(int minIndex, Mat indexMatrix) {
 }
 
 
-vector <pair <int, int>> findMinCut(Mat block, Mat inputOverlap, Mat outputOverlap , int blockSize, int overlap) {
-	Mat matSub;
-	Mat matSquared;
-	Mat errorSurface;
+vector <pair <int, int>> findMinCut(Mat inputOverlap, Mat outputOverlap , int blockSize, int overlap) {
+	Mat matSub, matSquared, errorSurface;
 	vector <pair <int, int>> minPath;
 	vector <double> parents;
 	vector <double> lastRow;
@@ -36,8 +35,6 @@ vector <pair <int, int>> findMinCut(Mat block, Mat inputOverlap, Mat outputOverl
 	matSub.convertTo(matSub, CV_64FC3);
 	matSquared = matSub.mul(matSub);
 
-	// We add the three channels to get the errorSurface
-	// transform(matSquared, errorSurface, Matx13f(1, 1, 1));
 	errorSurface = sumChannels(matSquared);
 	cumulativeMatrix = Mat::zeros(Size(errorSurface.size[1], errorSurface.size[0]), CV_64F);
 	indexMatrix = Mat::zeros(Size(errorSurface.size[1], errorSurface.size[0]), CV_8S);
@@ -51,20 +48,20 @@ vector <pair <int, int>> findMinCut(Mat block, Mat inputOverlap, Mat outputOverl
 			}
 			else {
 				if (j == 0) {
-					parents = { DBL_MAX, errorSurface.at<double>(Point(j, i - 1)), errorSurface.at<double>(Point(j + 1, i - 1)) };
+					parents = { DBL_MAX, cumulativeMatrix.at<double>(Point(j, i - 1)), cumulativeMatrix.at<double>(Point(j + 1, i - 1)) };
 				}
 				else if (j == (errorSurface.size[1] - 1)) {
-					parents = { errorSurface.at<double>(Point(j - 1 , i - 1)), errorSurface.at<double>(Point(j, i - 1)), DBL_MAX };
+					parents = { cumulativeMatrix.at<double>(Point(j - 1 , i - 1)), cumulativeMatrix.at<double>(Point(j, i - 1)), DBL_MAX };
 				}
 				else {
-					parents = { errorSurface.at<double>(Point(j - 1 , i - 1)), errorSurface.at<double>(Point(j, i - 1)),
-					errorSurface.at<double>(Point(j + 1, i - 1)) };
+					parents = { cumulativeMatrix.at<double>(Point(j - 1 , i - 1)), cumulativeMatrix.at<double>(Point(j, i - 1)),
+					cumulativeMatrix.at<double>(Point(j + 1, i - 1)) };
 				}
 
 				minIndex = getMinIndex(parents);
 				minValue = parents[minIndex];
 
-				cumulativeValue = cumulativeMatrix.at<double>(Point(j, i)) + minValue;
+				cumulativeValue = errorSurface.at<double>(Point(j, i)) + minValue;
 				cumulativeMatrix.at<double>(Point(j, i)) = cumulativeValue;
 
 				if (i == (errorSurface.size[0] - 1)) {
@@ -78,7 +75,7 @@ vector <pair <int, int>> findMinCut(Mat block, Mat inputOverlap, Mat outputOverl
 					indexMatrix.at<schar>(Point(j, i)) = 0;
 				}
 				else {
-					indexMatrix.at<schar>(Point(j, 1)) = 1;
+					indexMatrix.at<schar>(Point(j, i)) = 1;
 				}
 			}
 		}
@@ -95,6 +92,8 @@ vector <pair <int, int>> findMinCut(Mat block, Mat inputOverlap, Mat outputOverl
 
 Mat findRandomPatch(Mat inputTexture, int limit, int blockSize, int overlap) {
 	vector <pair <int, int>> availableVertices;
+	Mat randomBlock;
+	int randomIndex, x, y;
 
 	for (int i = 0; i < limit; i++) {
 		for (int j = 0; j < limit; j++) {
@@ -102,13 +101,14 @@ Mat findRandomPatch(Mat inputTexture, int limit, int blockSize, int overlap) {
 		}
 	}
 	// We randomly select one of the patches
-	int randomIndex = rand() % availableVertices.size();
-	int x = availableVertices[randomIndex].first;
-	int y = availableVertices[randomIndex].second;
+	srand(time(0));
+	randomIndex = rand() % availableVertices.size();
+	x = availableVertices[randomIndex].first;
+	y = availableVertices[randomIndex].second;
 
 	// We select region of interest (ROI), that is the selected block
-	Mat block = inputTexture(Rect(x, y, blockSize, blockSize));
-	return block;
+	randomBlock = inputTexture(Rect(x, y, blockSize, blockSize)).clone();
+	return randomBlock;
 }
 
 
@@ -121,7 +121,7 @@ Mat findHorizontalPatch(Mat inputTexture, Mat outputTexture, int limit, int rowI
 	Mat inputOverlapRoiT;
 	Mat block;
 	Mat mask;
-	Mat outputOverlapRoi = outputTexture(Rect(0, rowIndex, blockSize, overlap));
+	Mat outputOverlapRoi = outputTexture(Rect(0, rowIndex, blockSize, overlap)).clone();
 	Mat outputOverlapRoiT;
 	double loss;
 
@@ -143,18 +143,20 @@ Mat findHorizontalPatch(Mat inputTexture, Mat outputTexture, int limit, int rowI
 		}
 	}
 
+	srand(time(0));
 	int randomIndex = rand() % blocksVector.size();
 	int x = blocksVector[randomIndex].first;
 	int y = blocksVector[randomIndex].second;
 
-	block = inputTexture(Rect(x, y, blockSize, blockSize)).clone();
-	inputOverlapRoi = inputTexture(Rect(x, y, blockSize, overlap));
+	Mat patchBlock = inputTexture(Rect(x, y, blockSize, blockSize)).clone();
+
+	inputOverlapRoi = inputTexture(Rect(x, y, blockSize, overlap)).clone();
 	transpose(inputOverlapRoi, inputOverlapRoiT);
 	transpose(outputOverlapRoi, outputOverlapRoiT);
 	mask = Mat::zeros(Size(inputOverlapRoi.size[1], inputOverlapRoi.size[0]), CV_8U);
 
 	// Now that we have the optimuum block, we need to find the minCut
-	minPath = findMinCut(block, inputOverlapRoiT, outputOverlapRoiT, blockSize, overlap);
+	minPath = findMinCut(inputOverlapRoiT, outputOverlapRoiT, blockSize, overlap);
 
 	for (int i = 0; i < minPath.size(); i++) {
 		x = minPath[i].first;
@@ -166,9 +168,9 @@ Mat findHorizontalPatch(Mat inputTexture, Mat outputTexture, int limit, int rowI
 
 	// Ahora aqui copiamos output en input pero con la mascara, de modo que solo se pegue lo que esta a 1
 	outputOverlapRoi.copyTo(inputOverlapRoi, mask);
-	inputOverlapRoi.copyTo(block(Rect(0, 0, blockSize, overlap)));
+	inputOverlapRoi.copyTo(patchBlock(Rect(0, 0, blockSize, overlap)));
 
-	return block;
+	return patchBlock;
 }
 
 
@@ -178,12 +180,14 @@ Mat findVerticalPatch(Mat inputTexture, Mat outputTexture, int limit, int colInd
 	vector <pair <int, int>> minPath;
 	vector <double> lossVector;
 	Mat inputOverlapRoi;
-	Mat block;
+	Mat block, patchBlock, refBlock, resBlock;
 	Mat mask;
+	double loss, minValue;
+	int x, y, minIndex, randomIndex;
 
-	Mat outputOverlapRoi = outputTexture(Rect(colIndex, 0, overlap, blockSize));
 
-	double loss;
+	Mat outputOverlapRoi = outputTexture(Rect(colIndex, 0, overlap, blockSize)).clone();
+	refBlock = outputTexture(Rect(colIndex, 0, blockSize, blockSize)).clone();
 
 	for (int i = 0; i < limit; i++) {
 		for (int j = 0; j < limit; j++) {
@@ -194,8 +198,8 @@ Mat findVerticalPatch(Mat inputTexture, Mat outputTexture, int limit, int colInd
 		}
 	}
 
-	int minIndex = getMinIndex(lossVector);
-	double minValue = lossVector[minIndex];
+	minIndex = getMinIndex(lossVector);
+	minValue = lossVector[minIndex];
 
 	for (int i = 0; i < lossVector.size(); i++) {
 		if (lossVector[i] <= minValue * (1.0 + tolerance)) {
@@ -203,30 +207,31 @@ Mat findVerticalPatch(Mat inputTexture, Mat outputTexture, int limit, int colInd
 		}
 	}
 
-	int randomIndex = rand() % blocksVector.size();
-	int x = blocksVector[randomIndex].first;
-	int y = blocksVector[randomIndex].second;
+	randomIndex = rand() % blocksVector.size();
 
-	block = inputTexture(Rect(x, y, blockSize, blockSize)).clone();
-	inputOverlapRoi = inputTexture(Rect(x, y, overlap, blockSize));
-	mask = Mat::zeros(Size(inputOverlapRoi.size[1], inputOverlapRoi.size[0]), CV_8U);
+	x = blocksVector[randomIndex].first;
+	y = blocksVector[randomIndex].second;
+
+	patchBlock = inputTexture(Rect(x, y, blockSize, blockSize)).clone();
+
+	resBlock = Mat::zeros(Size(patchBlock.size[1], patchBlock.size[0]), CV_8UC3);
+	mask = Mat::zeros(Size(patchBlock.size[1], patchBlock.size[0]), CV_8U);
+	inputOverlapRoi = inputTexture(Rect(x, y, overlap, blockSize)).clone();
 
 	// Now that we have the optimuum block, we need to find the minCut
-	minPath = findMinCut(block, inputOverlapRoi, outputOverlapRoi, blockSize, overlap);
+	minPath = findMinCut(inputOverlapRoi, outputOverlapRoi, blockSize, overlap);
 
 	for (int i = 0; i < minPath.size(); i++) {
 		x = minPath[i].first;
 		y = minPath[i].second;
 		for (int j = 0; j < x; j++) {
-			mask.at<uchar>(Point(j, i)) = 1;
+			mask.at<uchar>(Point(j , i)) = 1;
 		}
 	}
 
-	// Ahora aqui copiamos output en input pero con la mascara, de modo que solo se pegue lo que esta a 1
-	outputOverlapRoi.copyTo(inputOverlapRoi, mask);
-	inputOverlapRoi.copyTo(block(Rect(0, 0, overlap, blockSize)));
-
-	return block;
+	patchBlock.copyTo(resBlock);
+	refBlock.copyTo(resBlock, mask);
+	return resBlock;
 }
 
 
@@ -237,14 +242,14 @@ Mat findHorizontalVerticalPatch(Mat inputTexture, Mat outputTexture, int limit, 
 	vector <double> lossVector;
 	vector <pair <int, int>> minPathHorizontal;
 	vector <pair <int, int>> minPathVertical;
-	Mat block;
+	Mat block, patchBlock, resBlock;
 	Mat inputOverlapRoiHorizontal;
 	Mat inputOverlapRoiVertical;
 	Mat maskHorizontal;
 	Mat maskVertical;
 	Mat mask, mask1, mask2;
-	Mat outputOverlapRoiHorizontal = outputTexture(Rect(colIndex, rowIndex, blockSize, overlap));
-	Mat outputOverlapRoiVertical = outputTexture(Rect(colIndex, rowIndex, overlap, blockSize));
+	Mat outputOverlapRoiHorizontal = outputTexture(Rect(colIndex, rowIndex, blockSize, overlap)).clone();
+	Mat outputOverlapRoiVertical = outputTexture(Rect(colIndex, rowIndex, overlap, blockSize)).clone();
 	Mat inputOverlapRoiHorizontalT, inputOverlapRoiVerticalT, outputOverlapRoiHorizontalT, outputOverlapRoiVerticalT;
 	Mat upDownOverlap;
 	double l2Sum;
@@ -253,10 +258,10 @@ Mat findHorizontalVerticalPatch(Mat inputTexture, Mat outputTexture, int limit, 
 	for (int i = 0; i < limit; i++) {
 		for (int j = 0; j < limit; j++) {
 			l2Sum = 0.0;
-			inputOverlapRoiHorizontal = inputTexture(Rect(i, j, blockSize, overlap));
+			inputOverlapRoiHorizontal = inputTexture(Rect(i, j, blockSize, overlap)).clone();
 			loss = l2Loss(inputOverlapRoiHorizontal, outputOverlapRoiHorizontal);
 			l2Sum += loss;
-			inputOverlapRoiVertical = inputTexture(Rect(i, j, overlap, blockSize));
+			inputOverlapRoiVertical = inputTexture(Rect(i, j, overlap, blockSize)).clone();
 			loss = l2Loss(inputOverlapRoiVertical, outputOverlapRoiVertical);
 			l2Sum += loss;
 			indexVector.push_back(make_pair(i, j));
@@ -273,55 +278,59 @@ Mat findHorizontalVerticalPatch(Mat inputTexture, Mat outputTexture, int limit, 
 		}
 	}
 
+	srand(time(0));
 	int randomIndex = rand() % blocksVector.size();
 	int x = blocksVector[randomIndex].first;
 	int y = blocksVector[randomIndex].second;
 
-	block = inputTexture(Rect(x, y, blockSize, blockSize)).clone();
+	patchBlock = inputTexture(Rect(x, y, blockSize, blockSize)).clone();
+	resBlock = Mat::zeros(Size(patchBlock.size[1], patchBlock.size[0]), CV_8UC3);
+	mask = Mat::zeros(Size(patchBlock.size[1], patchBlock.size[0]), CV_8U);
 
-	upDownOverlap = Mat::zeros(Size(block.size[1], block.size[0]), CV_8UC3);
+	upDownOverlap = Mat::zeros(Size(patchBlock.size[1], patchBlock.size[0]), CV_8UC3);
 	outputOverlapRoiHorizontal.copyTo(upDownOverlap(Rect(0, 0, blockSize, overlap)));
 	outputOverlapRoiVertical.copyTo(upDownOverlap(Rect(0, 0, overlap, blockSize)));
 
-	inputOverlapRoiHorizontal = inputTexture(Rect(x, y, blockSize, overlap));
-	inputOverlapRoiVertical = inputTexture(Rect(x, y, overlap, blockSize));
+	inputOverlapRoiHorizontal = inputTexture(Rect(x, y, blockSize, overlap)).clone();
+	inputOverlapRoiVertical = inputTexture(Rect(x, y, overlap, blockSize)).clone();
 	transpose(inputOverlapRoiHorizontal, inputOverlapRoiHorizontalT);
 	transpose(outputOverlapRoiHorizontal, outputOverlapRoiHorizontalT);
 
-	mask1 = Mat::zeros(Size(block.size[1], block.size[0]), CV_8U);
-	mask2 = Mat::zeros(Size(block.size[1], block.size[0]), CV_8U);
-	maskHorizontal = Mat::zeros(Size(inputOverlapRoiHorizontal.size[1], inputOverlapRoiHorizontal.size[0]), CV_8U);
-	maskVertical = Mat::zeros(Size(inputOverlapRoiVertical.size[1], inputOverlapRoiVertical.size[0]), CV_8U);
+	mask1 = Mat::zeros(Size(patchBlock.size[1], patchBlock.size[0]), CV_8U);
+	mask2 = Mat::zeros(Size(patchBlock.size[1], patchBlock.size[0]), CV_8U);
+	//maskHorizontal = Mat::zeros(Size(inputOverlapRoiHorizontal.size[1], inputOverlapRoiHorizontal.size[0]), CV_8U);
+	//maskVertical = Mat::zeros(Size(inputOverlapRoiVertical.size[1], inputOverlapRoiVertical.size[0]), CV_8U);
 
 	// Horizontal Overlapping
-	minPathHorizontal = findMinCut(block, inputOverlapRoiHorizontalT, outputOverlapRoiHorizontalT, blockSize, overlap);
+	minPathHorizontal = findMinCut(inputOverlapRoiHorizontalT, outputOverlapRoiHorizontalT, blockSize, overlap);
 
 	for (int i = 0; i < minPathHorizontal.size(); i++) {
 		x = minPathHorizontal[i].first;
 		y = minPathHorizontal[i].second;
 		for (int j = 0; j < x; j++) {
-			maskHorizontal.at<uchar>(Point(i, j)) = 1;
+			mask1.at<uchar>(Point(i, j)) = 1;
 		}
 	}
 
-	maskHorizontal.copyTo(mask1(Rect(0, 0, blockSize, overlap)));
+	//maskHorizontal.copyTo(mask1(Rect(0, 0, blockSize, overlap)));
 
 	// Vertical Overlapping
-	minPathVertical = findMinCut(block, inputOverlapRoiVertical, outputOverlapRoiVertical, blockSize, overlap);
+	minPathVertical = findMinCut(inputOverlapRoiVertical, outputOverlapRoiVertical, blockSize, overlap);
 
 	for (int i = 0; i < minPathVertical.size(); i++) {
 		x = minPathVertical[i].first;
 		y = minPathVertical[i].second;
 		for (int j = 0; j < x; j++) {
-			maskVertical.at<uchar>(Point(j, i)) = 1;
+			mask2.at<uchar>(Point(j, i)) = 1;
 		}
 	}
 
-	maskVertical.copyTo(mask2(Rect(0, 0, overlap, blockSize)));
+	//maskVertical.copyTo(mask2(Rect(0, 0, overlap, blockSize)));
 	bitwise_or(mask1, mask2, mask);
 
 	// Ahora aqui copiamos output en input pero con la mascara, de modo que solo se pegue lo que esta a 1
-	upDownOverlap.copyTo(block, mask);
-	return block;
+	patchBlock.copyTo(resBlock);
+	upDownOverlap.copyTo(resBlock, mask);
+	return resBlock;
 
 }
