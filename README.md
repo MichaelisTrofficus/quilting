@@ -2,7 +2,7 @@
 
 This is my own implementation of the **quilting algorithm** in the C++ programming language using the OpenCV library.  The algorithm is pretty simple, but it produces good results. In the following image (which comes from the original paper), you can see, in summary, how quilting works.
 
-![](https://github.com/MichaelisTrofficus/quilting/blob/master/input/descarga.jpeg)
+![](https://github.com/MichaelisTrofficus/quilting/blob/master/input/quilting_texture.png)
 
 In a), we can see the naïve approach, that is, a **random placement of blocks** coming from the input texture.
 
